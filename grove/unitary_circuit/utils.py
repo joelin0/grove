@@ -3,6 +3,8 @@ from grove.grover.grover import n_qubit_control
 import numpy as np
 from scipy.linalg import sqrtm
 import pyquil.quil as pq
+from pyquil.parametric import ParametricProgram
+from pyquil.api import SyncConnection
 
 STANDARD_GATE_NAMES = STANDARD_GATES.keys()
 
@@ -142,7 +144,7 @@ def get_one_qubit_gate_params(U):
     :param U: a 2x2 unitary matrix
     :return: d_phase, alpha, theta, beta
     """
-    d = np.sqrt(np.linalg.det(U)+0j) # hacky way to make sure inside is complex to allow for complex sqrt
+    d = np.sqrt(np.linalg.det(U)+0j)  # hacky way to make sure inside is complex to allow for complex sqrt
     U = U/d
     d_phase = np.angle(d)
     alpha = np.angle(U[0,0]) - np.angle(U[1,0])
@@ -170,7 +172,91 @@ def get_one_qubit_controlled_from_unitary_params(params, control, target):
         .inst(RZ(-(beta+alpha)/2, target))\
         .inst(CNOT(control, target))\
         .inst(RZ((beta-alpha)/2, target))
+    if d_phase != 0:
+        print "Hello: ", params
     return p
+
+def create_arbitrary_state(vector):
+    vector = vector/np.linalg.norm(vector)
+    n = int(np.ceil(np.log2(len(vector))))
+    N = 2 ** n
+    print n, N
+    p = pq.Program()
+    last = 0
+    ones = set()
+    zeros = {0}
+    unset_coef = 1
+    cxn = SyncConnection()
+    for i in range(1, N):
+        current = i ^ (i >> 1)
+        flipped = 0
+        difference = last ^ current
+        while difference & 1 == 0:
+            difference = difference >> 1
+            flipped += 1
+
+        flipped_to_one = True
+        if flipped in ones:
+            ones.remove(flipped)
+            flipped_to_one = False
+
+        else:
+            if flipped in zeros:
+                zeros.remove(flipped)
+
+        a_i = 0. if last >= len(vector) else vector[last]
+        z_i = a_i/unset_coef
+        alpha = -2*np.angle(z_i)
+        beta = 2 * np.arccos(np.abs(z_i))
+
+        if not flipped_to_one:
+            alpha *= -1
+
+#        print last, current, flipped_to_one, unset_coef, a_i, z_i, alpha, beta
+        # set all zero controls to 1
+        p.inst(map(X, zeros))
+
+        # make a z rotation to get the correct phase
+        p += n_qubit_controlled_RZ(list(zeros | ones), flipped, alpha)
+
+        # make a y rotation to get correct magnitude
+        p += n_qubit_controlled_RY(list(zeros | ones), flipped, beta)
+
+        if flipped_to_one:
+            ones.add(flipped)
+            unset_coef *= np.exp(-1j*alpha/2)*np.sin(beta/2)
+
+        else:
+            zeros.add(flipped)
+            unset_coef *= -np.exp(1j*alpha/2)*np.sin(beta/2)
+
+        last = current
+        p.out()
+        wf, _ = cxn.wavefunction(p)
+        print wf
+
+    # fix the phase of the final qubit
+    a_i = vector[last]
+    z_i = a_i / unset_coef
+    theta = np.angle(z_i)
+    p.inst(map(X, zeros))
+    p += n_qubit_controlled_PHASE(list(zeros), n-1, theta)
+    p.inst(map(X, zeros))
+    return p
+
+def n_qubit_controlled_RZ(controls, target, theta):
+    u = np.array([[np.exp(-1j*theta/2), 0], [0, np.exp(1j*theta/2)]])
+    return better_n_qubit_control(controls, target, u)
+
+def n_qubit_controlled_PHASE(controls, target, theta):
+    u = np.array([[1, 0], [0, np.exp(1j*theta)]])
+    p = better_n_qubit_control(controls, target, u)
+    print p.out()
+    return p
+
+def n_qubit_controlled_RY(controls, target, theta):
+    u = np.array([[np.cos(theta/2), -np.sin(theta/2)], [np.sin(theta/2), np.cos(theta/2)]])
+    return better_n_qubit_control(controls, target, u)
 
 def better_n_qubit_control(controls, target, u):
     """
@@ -192,7 +278,10 @@ def better_n_qubit_control(controls, target, u):
         sqrt_params = get_one_qubit_gate_params(sqrtm(target_gate))
 
         adj_sqrt_params = get_one_qubit_gate_params(np.conj(sqrtm(target_gate)).T)
-        if len(controls) == 1:
+        if len(controls) == 0:
+            p += get_one_qubit_gate_from_unitary_params(params, target)
+
+        elif len(controls) == 1:
             # controlled U
             p += get_one_qubit_controlled_from_unitary_params(params, controls[0], target)
         else:

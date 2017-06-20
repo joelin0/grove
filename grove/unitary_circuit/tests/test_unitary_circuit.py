@@ -185,8 +185,16 @@ def test_better_n_qubit_control():
     results = cxn.run_and_measure(p, [q.index() for q in controls + [target]])
     print results
 
+def test_create_arbitrary_state():
+    p = create_arbitrary_state([1, 2, 3, 4])
+
+    print p.out()
+    cxn = SyncConnection()
+    wf, _ = cxn.wavefunction(p)
+    print wf
+
 if __name__=='__main__':
-    test_better_n_qubit_control()
+    test_create_arbitrary_state()
     """
     for x in range(2**4):
         test_four_bit_add_reversible_function(x)
