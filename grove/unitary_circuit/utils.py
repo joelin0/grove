@@ -180,22 +180,20 @@ def get_one_qubit_controlled_from_unitary_params(params, control, target):
         .inst(RZ(-(beta+alpha)/2, target))\
         .inst(CNOT(control, target))\
         .inst(RZ((beta-alpha)/2, target))
-    if d_phase != 0:
-        print "Hello: ", params
     return p
 
 def create_arbitrary_state(vector):
     vector = vector/np.linalg.norm(vector)
-    print vector
+    #print vector
     n = int(np.ceil(np.log2(len(vector))))
     N = 2 ** n
-    print n, N
+    #print n, N
     p = pq.Program()
     last = 0
     ones = set()
     zeros = {0}
     unset_coef = 1
-    cxn = SyncConnection()
+    #cxn = SyncConnection()
     for i in range(1, N):
         current = i ^ (i >> 1)
         flipped = 0
@@ -221,9 +219,9 @@ def create_arbitrary_state(vector):
         if not flipped_to_one:
             alpha *= -1
 
-        print last, current, flipped_to_one, unset_coef, a_i, z_i, alpha, beta
+        #print last, current, flipped_to_one, unset_coef, a_i, z_i, alpha, beta
         # set all zero controls to 1
-        print zeros, ones
+        #print zeros, ones
         p.inst(map(X, zeros))
 
         # make a z rotation to get the correct phase
@@ -241,7 +239,7 @@ def create_arbitrary_state(vector):
             unset_coef *= -np.exp(1j*alpha/2)*np.sin(beta/2)
 
         last = current
-        print p.out()
+        #print p.out()
         #wf, _ = cxn.wavefunction(p)
         #print wf
 

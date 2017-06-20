@@ -186,8 +186,8 @@ def test_better_n_qubit_control():
     print results
 
 def test_create_arbitrary_state():
-#    p = create_arbitrary_state([1, 2, 3, 4])
-    p = create_arbitrary_state([1+1j, 2])
+    p = create_arbitrary_state([1, 2, -3])
+#    p = create_arbitrary_state([1+1j, 2])
 
     print p.out()
     cxn = SyncConnection()
