@@ -147,10 +147,18 @@ def get_one_qubit_gate_params(U):
     d = np.sqrt(np.linalg.det(U)+0j)  # hacky way to make sure inside is complex to allow for complex sqrt
     U = U/d
     d_phase = np.angle(d)
-    alpha = np.angle(U[0,0]) - np.angle(U[1,0])
-    beta = np.angle(U[0,0]) + np.angle(U[1,0])
+    if U[0, 0] == 0:
+        beta = np.angle(U[1, 0])
+        alpha = -beta
+    elif U[1, 0] == 0:
+        alpha = np.angle(U[0, 0])
+        beta = alpha
+    else:
+        alpha = np.angle(U[0,0]/U[1,0])
+        beta = np.angle(U[0,0]*U[1,0])
+
     theta = 2*np.arctan2(np.abs(U[1, 0]), np.abs(U[0, 0]))
-    return d_phase, alpha, beta, theta
+    return d_phase, -alpha, -beta, theta
 
 def get_one_qubit_gate_from_unitary_params(params, qubit):
     p = pq.Program()
@@ -178,6 +186,7 @@ def get_one_qubit_controlled_from_unitary_params(params, control, target):
 
 def create_arbitrary_state(vector):
     vector = vector/np.linalg.norm(vector)
+    print vector
     n = int(np.ceil(np.log2(len(vector))))
     N = 2 ** n
     print n, N
@@ -212,8 +221,9 @@ def create_arbitrary_state(vector):
         if not flipped_to_one:
             alpha *= -1
 
-#        print last, current, flipped_to_one, unset_coef, a_i, z_i, alpha, beta
+        print last, current, flipped_to_one, unset_coef, a_i, z_i, alpha, beta
         # set all zero controls to 1
+        print zeros, ones
         p.inst(map(X, zeros))
 
         # make a z rotation to get the correct phase
@@ -231,9 +241,9 @@ def create_arbitrary_state(vector):
             unset_coef *= -np.exp(1j*alpha/2)*np.sin(beta/2)
 
         last = current
-        p.out()
-        wf, _ = cxn.wavefunction(p)
-        print wf
+        print p.out()
+        #wf, _ = cxn.wavefunction(p)
+        #print wf
 
     # fix the phase of the final qubit
     a_i = vector[last]
@@ -245,16 +255,22 @@ def create_arbitrary_state(vector):
     return p
 
 def n_qubit_controlled_RZ(controls, target, theta):
+    if len(controls) == 0:
+        return pq.Program().inst(RZ(theta, target))
     u = np.array([[np.exp(-1j*theta/2), 0], [0, np.exp(1j*theta/2)]])
     return better_n_qubit_control(controls, target, u)
 
 def n_qubit_controlled_PHASE(controls, target, theta):
+    if len(controls) == 0:
+        return pq.Program().inst(PHASE(theta, target))
     u = np.array([[1, 0], [0, np.exp(1j*theta)]])
     p = better_n_qubit_control(controls, target, u)
-    print p.out()
+    #print p.out()
     return p
 
 def n_qubit_controlled_RY(controls, target, theta):
+    if len(controls) == 0:
+        return pq.Program().inst(RY(theta, target))
     u = np.array([[np.cos(theta/2), -np.sin(theta/2)], [np.sin(theta/2), np.cos(theta/2)]])
     return better_n_qubit_control(controls, target, u)
 
