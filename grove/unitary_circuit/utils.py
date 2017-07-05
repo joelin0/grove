@@ -86,6 +86,8 @@ def get_one_qubit_controlled_from_unitary_params(params, control, target):
     p = pq.Program()
     d_phase, alpha, beta, theta = params
 
+    if d_phase != 0:
+        p.inst(PHASE(d_phase, control))
     if beta - alpha != 0:
         p.inst(RZ((beta - alpha) / 2, target))
     p.inst(CNOT(control, target))
@@ -98,8 +100,6 @@ def get_one_qubit_controlled_from_unitary_params(params, control, target):
         p.inst(RY(theta / 2, target))
     if alpha != 0:
         p.inst(RZ(alpha, target))
-    if d_phase != 0:
-        p.inst(PHASE(d_phase, control))
     return p
 
 
